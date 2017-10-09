@@ -9,9 +9,13 @@ Icewarp　则是对目前的需求进行的封装（账号添加）
 
 要修改里面的类请到官网阅读api里的php章节
 
+目前发现的问题：
+账号删除，创建失败：有可能是邮箱管理员直接操作了数据库
+
 '''
 
 import xmlrpc.client
+import http.client
 
 
 class NullPointerException(Exception):
@@ -20,6 +24,32 @@ class NullPointerException(Exception):
 
 class NoSuchDomainException(Exception):
     pass
+
+class Transport(xmlrpc.client.Transport):
+    """Handles an HTTPS transaction to an XML-RPC server."""
+    def __init__(self, use_datetime=False, use_builtin_types=False,
+                 context=None,**kwargs):
+        super().__init__(use_datetime=use_datetime, use_builtin_types=use_builtin_types)
+        self.context = context
+        self._extra = kwargs
+
+    # FIXME: mostly untested
+
+    def make_connection(self, host):
+        if self._connection and host == self._connection[0]:
+            return self._connection[1]
+
+        if not hasattr(http.client, "HTTPSConnection"):
+            raise NotImplementedError(
+                "your version of http.client doesn't support HTTPS")
+        # create a HTTPS connection object from a host descriptor
+        # host may be a string, or a (host, x509-dict) tuple
+        chost, self._extra_headers, x509 = self.get_host_info(host)
+        #　add **self._extra
+        self._connection = host, http.client.HTTPSConnection(chost,
+                                                             None, context=self.context, **(x509 or {}),**self._extra)
+        return self._connection[1]
+
 
 AccountType = {
     '0':'POP3',
@@ -34,7 +64,6 @@ class IceWarpProxy(object):
         "APIObject->OpenDomain": "DomainObject",
         "DomainObject->NewAccount": "AccountObject",
         "DomainObject->OpenAccount": "AccountObject",
-        "APIObject->GetDomainList": "DomainObject",
     }
 
     def __init__(self, api, ptr, type):
@@ -80,8 +109,10 @@ class IceWarpProxy(object):
 
 
 class IceWarpAPI(object):
-    def __init__(self, api_url):
-        self.xmlrpc_proxy = xmlrpc.client.ServerProxy(api_url)
+    def __init__(self, api_url,timeout=None):
+        transport =Transport(use_datetime=False, use_builtin_types=False,
+                 context=None,timeout=timeout)
+        self.xmlrpc_proxy = xmlrpc.client.ServerProxy(api_url, transport=transport)
         self.null_object = IceWarpProxy(self, "0", None)
         self.api_object = self.null_object.Create("IceWarpServer.APIObject")
 
@@ -108,14 +139,14 @@ class IceWarpAPI(object):
 
 
 class Icewarp(object):
-    def __init__(self, server=None, login=None, password=None):
+    def __init__(self, server=None, login=None, password=None,timeout=None):
         api_creds = {"login": login, "password": password, "machine": server}
         try:
             api_base = "https://%(login)s:%(password)s@%(machine)s/rpc/" % api_creds
-            self.api = IceWarpAPI(api_base)
-        except:
+            self.api = IceWarpAPI(api_base,timeout=timeout)
+        except :
             api_base = "http://%(login)s:%(password)s@%(machine)s/rpc/" % api_creds
-            self.api = IceWarpAPI(api_base)
+            self.api = IceWarpAPI(api_base, timeout=timeout)
 
     def get_account_list(self, domain):
         '''
@@ -217,17 +248,17 @@ class Icewarp(object):
 
     def GetAccountIndexByComment(self,domain,comment):
         '''
-        根据说明（描述／工号）获取账号详情　　模糊查询
+        根据说明（描述）获取账号详情　　模糊查询
         :param domain:
         :param comment:
         :return:
         '''
-        account = ice.api.OpenDomain(domain).NewAccount()
+        account = self.api.OpenDomain(domain).NewAccount()
         # FindInitQuery 功能做了与 FindInit 功能相同的工作，除非它接受一个查询参数，通过 Meeting 让您的标准帐户进行循
         # 环。该查询使用 SQL 语法，并支持文件系统帐户，数字参数应该像对待字符串，始终使用分组括号，LIKE 运算符也支
         # 持在文件系统帐户模式。
         # $account->FindInitQuery("test.com", "(u_alias like '%john%') or (u_admin = '1')");
-        Query_statu = account.FindInitQuery(domain, "U_Comment like '%"+comment+"%'")
+        Query_statu = account.FindInitQuery('9715.COM', "U_Comment like '%"+comment+"%'")
         ret = []
         while eval(account.FindNext()):
             row = dict()
@@ -251,7 +282,7 @@ class Icewarp(object):
         :param alias:
         :return:
         '''
-        account = ice.api.OpenDomain(domain).NewAccount()
+        account = self.api.OpenDomain(domain).NewAccount()
         # FindInitQuery 功能做了与 FindInit 功能相同的工作，除非它接受一个查询参数，通过 Meeting 让您的标准帐户进行循
         # 环。该查询使用 SQL 语法，并支持文件系统帐户，数字参数应该像对待字符串，始终使用分组括号，LIKE 运算符也支
         # 持在文件系统帐户模式。
@@ -273,9 +304,21 @@ class Icewarp(object):
         account.FindDone()
         return ret
 
+    def GetDomainList(self):
+        '''
+        获取所有域名
+        :reture
+        '''
+        domain_list = self.api.api_object.GetDomainList().rstrip(';')
+        return domain_list.split(';')
+
+
+
+
 if __name__ == '__main__':
-    ice = Icewarp(server='172.16.74.192', login='admin', password='Vasd.asd.')
-    data = ice.alias_exist('test.com','yuyuan')
-    print(data)
+    ice = Icewarp(server='172.16.74.192', login='admin', password='xxxxxx')
+
+
+
 
 
