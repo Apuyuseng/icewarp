@@ -18,7 +18,7 @@ IceWarp sdk
 ----
 
 
-```python
+```python3
 >>>import icewarp
 >>>c = icewarp.connect('https://user:account@host/rpc/')
 >>>c.get_account_info('test.com','yuyuan') #　获取帐号信息
@@ -29,4 +29,5 @@ IceWarp sdk
 
 >>>c.GetDomainList() # 获取域列表
 ['test.com','qq.com']
+
 ```

@@ -248,7 +248,7 @@ class Icewarp(object):
         # 环。该查询使用 SQL 语法，并支持文件系统帐户，数字参数应该像对待字符串，始终使用分组括号，LIKE 运算符也支
         # 持在文件系统帐户模式。
         # $account->FindInitQuery("test.com", "(u_alias like '%john%') or (u_admin = '1')");
-        Query_statu = account.FindInitQuery('9715.COM', "U_Comment like '%"+comment+"%'")
+        Query_statu = account.FindInitQuery(domain, "U_Comment like '%"+comment+"%'")
         ret = []
         while eval(account.FindNext()):
             row = dict()
