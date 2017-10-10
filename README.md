@@ -29,5 +29,4 @@ IceWarp sdk
 
 >>>c.GetDomainList() # 获取域列表
 ['test.com','qq.com']
-
 ```
